@@ -1,32 +1,42 @@
+const findCas = () => {
 let mysql  = require('promise-mysql');
 const request = require("request-promise");
 var stringSimilarity = require('string-similarity');
 const puppeteer = require('puppeteer');
-let config = {
-    host    : 'localhost',
-    user    : 'root',
-    password: '',
-    database: 'productresults'
+var config = {
+    host    : 'magnifymakeup.com',
+    user    : 'magnifym_JACKB',
+    password: 'x3YX4uQXu3WzXFg',
+    database: 'magnifym_productresults'
   };
+var retrys = 3;
 const url = 'https://toxnet.nlm.nih.gov/cgi-bin/sis/search2';
-
+async function retryPage(func, retrys) {
+    for(let i = 0; i < retrys; i++)
+    {
+        try 
+        {
+            return func();
+        }
+        catch(e)
+        {
+            if(i == retrys - 1)
+                throw e;
+        }
+    }
+}
 const processSQL = async () =>
 {
     const browser = await puppeteer.launch({headless : false});
     const page = await browser.newPage();
-    await page.goto(url, {"waitUntil" : "networkidle0"});
-
+    await retryPage(async () => { await page.goto(url, {"waitUntil" : "networkidle0"})}, retrys);
     await page.setViewport({
         width: 1200,
         height: 800
     });
-    let x = 877;
-    let y = 4840;
     var query_str =
     "SELECT name, id " +
-    "FROM chemical " +
-    "WHERE id " +
-    "BETWEEN " + x + " AND " + y;
+    "FROM chemical ";
     let connection = await mysql.createConnection(config);
     let resin = await connection.query(query_str);
     connection.end();
@@ -68,7 +78,7 @@ const processSQL = async () =>
             if(check = "good")
             {
                 await page.click(".btn-search"); 
-                await page.waitFor(4000);
+                await page.waitFor(10000);
                 let match = await page.evaluate(() => {
                     let yo = "0";
                     if(window.location.href != "https://chem.nlm.nih.gov/chemidplus/chemidlite.jsp")
@@ -121,5 +131,10 @@ const processSQL = async () =>
         }     
     }   
 }
+return {
+    processSQL : processSQL
+}
 
-processSQL();
+}
+
+module.exports = findCas();

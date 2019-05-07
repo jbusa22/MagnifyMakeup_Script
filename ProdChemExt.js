@@ -3,32 +3,37 @@ const cheerio = require("cheerio");
 const request = require("request-promise");
 const puppeteer = require('puppeteer');
 let mysql  = require('promise-mysql');
-async function click(resolve, reject) {
-    const selector_child  = `button[aria-label='Next']:not([disabled])`;
-    let arrow = await page.$(selector_child);
-    resolve();
-    
 
-}
-function resolved() {
-    return false;
-}
-function rejected() {
-    return true;
-}
 var errors = 0;
-var errorlog = [];
+
 var config = {
-    host    : 'localhost',
-    user    : 'root',
-    password: '',
-    database: 'productresults'
+    host    : 'magnifymakeup.com',
+    user    : 'magnifym_JACKB',
+    password: 'x3YX4uQXu3WzXFg',
+    database: 'magnifym_productresults'
   };
+
 let pool = null;
+let retrys = 3;
+async function retryPage(func, retrys) {
+    for(let i = 0; i < retrys; i++)
+    {
+        try 
+        {
+            return func();
+        }
+        catch(e)
+        {
+            if(i == retrys - 1)
+                throw e;
+        }
+    }
+}
+
 async function extractLinks(url, resolve, reject) {
     const browser = await puppeteer.launch({headless : false});
     const page = await browser.newPage();
-    await page.goto(url);
+    await retryPage(async () => { await page.goto(url)}, retrys);
     await page.setViewport({
         width: 1200,
         height: 800
@@ -38,6 +43,7 @@ async function extractLinks(url, resolve, reject) {
     var i = 1;
     var go = true;
     var matches = [];
+    var spec = "";
     while(go)
     {
         await autoScroll(page);
@@ -47,19 +53,19 @@ async function extractLinks(url, resolve, reject) {
         console.log(cat[0]);
         let mid = cat[0].match(/Text Box">([\s\S]*?)</);
         let base = getCat(cat[0], /Link Box">([\s\S]*?)</g);
-        let spec = base + mid[1];
+        spec = base + mid[1];
         let rightText = html.match(/ProductGrid">[\s\S]*BccComp|ProductGrid">[\s\S]*css-1bx9fpp/);
         console.log(rightText);
         rightText = rightText[0];
-        matches.concat(getMatches(rightText, /href="(.*?\n*?)"/g));
+        matches = matches.concat(getMatches(rightText, /href="(.*?\n*?)"/g));
         console.log("Number found: " + matches.length);
-        if(click(resolve, reject).then(resolved, rejected))
-        {
-            go = false;
-        }
+        const selector_child  = `button[aria-label='Next']:not([disabled])`;
+        let arrow = await page.$(selector_child);
+        if(!arrow)
+            break;
         i++;
-        page.goto(url + "?currentPage=" + i);
-        
+        await retryPage(async () => { await page.goto(url + "?currentPage=" + i)}, retrys);
+        await page.waitFor(4000);
     }
     let cnt = 0;
     let promisesArray = [];
@@ -115,7 +121,7 @@ async function extractLinks(url, resolve, reject) {
     
     resolve();
     
-
+    await browser.close();
 }
 const endpool = async () => 
 {
@@ -156,7 +162,7 @@ const  extractData = async (html, url, cat, resolve, reject) =>
             //console.log("dsadsa");
             //let connection = await mysql.createConnection(config);
             // insert statment
-            let sql = `INSERT INTO PRODUCT( NAME, CATEGORY, LINK, SEPHORAID, PRICE, BRAND)
+            let sql = `INSERT INTO product( name, CATEGORY, LINK, SEPHORAID, PRICE, BRAND)
                     VALUES(?,?,?,?,?,?)`;
             let sqlValues = [ data2, cat, url, sephoraid, price, data1];
             
@@ -207,7 +213,7 @@ const  extractData = async (html, url, cat, resolve, reject) =>
                         {
                             try 
                             {
-                                let sqlChem = `INSERT INTO CHEMICAL( NAME )
+                                let sqlChem = `INSERT INTO chemical( NAME )
                                 VALUES(?)`;
                                 let res2 = await connection.query(sqlChem, query_var);
                                 ChemicalId = res2.insertId;
@@ -241,7 +247,7 @@ const  extractData = async (html, url, cat, resolve, reject) =>
                         // then add product id and new chem id to prodchemlist
                         //console.log('Chem Primary Key created:' + newChemicalId);
                         // execute the insert statment
-                        let sqlProductChemical = `INSERT INTO CHEMPROD( PRODID, CHEMID )
+                        let sqlProductChemical = `INSERT INTO chemprod( PRODID, CHEMID )
                         VALUES(?,?)`;
 
                         let sqlProductChemicalValues = [ newProductId,ChemicalId];
@@ -255,7 +261,7 @@ const  extractData = async (html, url, cat, resolve, reject) =>
             else
             {
                 let NoChemicalId = 1;
-                let sqlProductChemical = `INSERT INTO CHEMPROD( PRODID, CHEMID )
+                let sqlProductChemical = `INSERT INTO chemprod( PRODID, CHEMID )
                         VALUES(?,?)`;
                 let sqlProductChemicalValues = [ newProductId, NoChemicalId];
                 let res3 = await connection.query(sqlProductChemical, sqlProductChemicalValues);
@@ -275,7 +281,7 @@ const  extractData = async (html, url, cat, resolve, reject) =>
         // if the link doesn't have ingredient info just add "no chemicals" to the database
         console.log(e);
         let NoChemicalId = 1;
-        let sqlProductChemical = `INSERT INTO CHEMPROD( PRODID, CHEMID )
+        let sqlProductChemical = `INSERT INTO chemprod( PRODID, CHEMID )
                 VALUES(?,?)`;
         let sqlProductChemicalValues = [ newProductId, NoChemicalId];
         let res3 = await connection.query(sqlProductChemical, sqlProductChemicalValues);
@@ -301,12 +307,12 @@ function removeUseless(matched) {
 
   function getMatches(string, regex, index) {
     index || (index = 1); // default to the first capturing group
-    var matches = [];
-    var match;
+    let matched_links = [];
+    let match;
     while (match = regex.exec(string)) {
-      matches.push(match[index]);
+        matched_links.push(match[index]);
     }
-    return matches;
+    return matched_links;
   }
   function getCat(string, regex) {
     index = 1; // default to the first capturing group

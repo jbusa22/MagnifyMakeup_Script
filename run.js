@@ -1,5 +1,6 @@
 const ProdChemExt = require("./ProdChemExt.js");
-
+const listBannedChemicals = require("./list.js");
+const findCas = require("./cas.js");
 // The first part should go through each sephora link in the array of links (each category ie Skincare)
 // For each link we run the testing.js code
 // how do I call testing.js for every link if it is an async function that uses the browser?
@@ -15,7 +16,7 @@ var skincare = ["acne-treatment-blemish-remover", "anti-aging-skin-care", "dark-
 var combine = makeup.concat(skincare);
 var preUrl = "https://www.sephora.com/shop/";
 let maxConcurrent = 1;
-(async () => {
+async function processChemicals() {
 for(let i = 0; i < combine.length; i++)
 {
     // 30 and i gets to 60 62 products
@@ -39,6 +40,14 @@ for(let i = 0; i < combine.length; i++)
         extractPromisesArray = [];
     }
 }
-ProdChemExt.endpool();}) ();
+    ProdChemExt.endpool();
+}
+(async () => {
+    await processChemicals();
+    await listBannedChemicals.processSQL();
+    await findCas.processSQL();
+}) ();
+
+
 // for solutions in the form dy/dx equals f(y) just find where its zero and test points between to see if its stable or unstable
 // for dy/dx = f(y)g(x) move it to int f(y)dy = int g(x)dx and solve for y
